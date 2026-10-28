@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FC Arena | Conexión Supabase</title>
+<style>
+:root{color-scheme:dark;--bg:#090d16;--panel:#111827;--line:#263348;--text:#eef4ff;--muted:#93a4bd;--blue:#5b8cff;--cyan:#48e0d0;--green:#39d98a;--red:#ff7185}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 85% -10%,#1c3155 0,transparent 35%),var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;padding:24px}.wrap{max-width:850px;margin:auto}.brand{display:flex;gap:12px;align-items:center;margin:12px 0 28px}.logo{display:grid;place-items:center;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#5b8cff,#6c4ce5);font-size:23px;font-weight:900}.eyebrow{color:var(--cyan);text-transform:uppercase;font-size:11px;letter-spacing:2px;font-weight:800}h1{margin:0;font-size:28px}h2{font-size:18px;margin:0 0 12px}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}.panel{background:rgba(17,24,39,.95);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}.field{display:flex;flex-direction:column;gap:6px;margin:12px 0}.field label{font-size:13px;color:var(--muted)}input,select{width:100%;padding:11px 12px;background:#0b111d;color:var(--text);border:1px solid var(--line);border-radius:9px;font:inherit}button{border:0;border-radius:9px;padding:10px 14px;font:inherit;font-weight:750;cursor:pointer;background:linear-gradient(120deg,var(--blue),#7965f7);color:white}button.secondary{background:#202c40;border:1px solid var(--line)}button:disabled{opacity:.5;cursor:wait}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.status{padding:12px;border-radius:10px;background:#0b111d;border:1px solid var(--line);white-space:pre-wrap;overflow-wrap:anywhere}.status.ok{border-color:#267a58;color:#a4f5cb}.status.bad{border-color:#793747;color:#ffbdc6}.item{padding:12px 0;border-bottom:1px solid var(--line)}.item:last-child{border-bottom:0}.pill{font-size:11px;padding:3px 8px;border-radius:999px;background:#202c40;color:var(--muted)}.hidden{display:none}.note{font-size:12px;color:var(--muted)}@media(max-width:500px){body{padding:14px}h1{font-size:23px}}
+</style>
+</head>
+<body><main class="wrap">
+<div class="brand"><div class="logo">⚽</div><div><div class="eyebrow">Tournament Hub</div><h1>FC ARENA</h1><div class="muted">Conexión inicial con Supabase</div></div></div>
+<div class="panel"><h2>1. Conectar el proyecto</h2><p class="muted">Usá el Project URL y la Publishable key (o la clave pública anon de proyectos antiguos). Estos datos se usan solo en esta página; no se guardan en el navegador. Nunca pegues aquí una service_role ni una clave secreta.</p>
+<div class="field"><label for="projectUrl">Project URL</label><input id="projectUrl" type="url" placeholder="https://tu-proyecto.supabase.co" autocomplete="off"></div>
+<div class="field"><label for="publicKey">Publishable key / anon</label><input id="publicKey" type="text" name="supabase-public-api-key" placeholder="sb_publishable_… o clave anon" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+<div class="actions"><button id="connectBtn">Conectar y comprobar</button><button id="clearBtn" class="secondary" type="button">Limpiar campos</button></div><div id="connectionStatus" class="status" style="margin-top:14px">Todavía no se ha probado la conexión.</div></div>
+<div id="authArea" class="grid hidden">
+<div class="panel"><h2>2. Crear cuenta de jugador</h2><p class="muted">Si ya creaste tu cuenta en Authentication → Users, no necesitás registrarte otra vez aquí.</p><div class="field"><label for="signupName">Nombre visible</label><input id="signupName" placeholder="Mi nombre"></div><div class="field"><label for="signupUsername">Usuario</label><input id="signupUsername" placeholder="mi_usuario"></div><div class="field"><label for="signupEmail">Correo electrónico</label><input id="signupEmail" type="email" placeholder="correo@ejemplo.com"></div><div class="field"><label for="signupPassword">Contraseña</label><input id="signupPassword" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres"></div><button id="signupBtn">Crear cuenta</button></div>
+<div class="panel"><h2>3. Iniciar sesión</h2><div class="field"><label for="loginEmail">Correo electrónico</label><input id="loginEmail" type="email" autocomplete="username" placeholder="correo@ejemplo.com"></div><div class="field"><label for="loginPassword">Contraseña</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Tu contraseña"></div><div class="actions"><button id="loginBtn">Iniciar sesión</button><button id="logoutBtn" class="secondary">Cerrar sesión</button></div><div id="authStatus" class="status" style="margin-top:14px">No has iniciado sesión.</div></div>
+</div>
+<div id="dataArea" class="panel hidden">
+ <div class="actions" style="justify-content:space-between;align-items:center"><h2 style="margin:0">4. Torneos de la base de datos</h2><button id="refreshBtn" class="secondary" type="button">Actualizar</button></div>
+ <p class="muted">La lista consulta los torneos reales y permite solicitar inscripción. Tu estado se mostrará cuando quede guardado.</p>
+ <div id="tournamentList" class="status">Iniciá sesión para consultar los torneos.</div>
+ <div class="panel" style="margin-top:18px;margin-bottom:0">
+  <h2>5. Crear un torneo</h2>
+  <p class="muted">Creá un torneo desde FC ARENA. Supabase y las políticas RLS siguen controlando los permisos.</p>
+  <form id="createTournamentForm">
+   <div class="field"><label for="tournamentName">Nombre del torneo *</label><input id="tournamentName" maxlength="100" required placeholder="Ej. Copa FC Arena"></div>
+   <div class="field"><label for="tournamentFormat">Formato *</label><input id="tournamentFormat" maxlength="50" required placeholder="Ej. Eliminación directa, Liga, Grupos"></div>
+   <div class="field"><label for="tournamentMaxPlayers">Máximo de jugadores *</label><input id="tournamentMaxPlayers" type="number" min="2" max="1000" step="1" required value="16"></div>
+   <div class="field"><label for="tournamentStartsAt">Fecha y hora de inicio (opcional)</label><input id="tournamentStartsAt" type="datetime-local"></div>
+   <div class="actions"><button id="createTournamentBtn" type="submit">Crear torneo</button></div>
+   <div id="createTournamentStatus" class="status" style="margin-top:14px" role="status" aria-live="polite">Completá los campos obligatorios.</div>
+   <p class="note">No introduzcas aquí claves secretas. Para crear torneos se usa la clave pública y los permisos RLS del proyecto.</p>
+  </form>
+  <div id="adminRegistrationsPanel" class="panel hidden" style="margin-top:18px;margin-bottom:0">
+   <div class="actions" style="justify-content:space-between;align-items:center">
+    <h2 style="margin:0">6. Administrar inscripciones</h2>
+    <button id="refreshRegistrationsBtn" class="secondary" type="button">Actualizar solicitudes</button>
+   </div>
+   <p class="muted">Solo aparece para cuentas con rol admin. Aprobá o rechazá las solicitudes pendientes.</p>
+   <div id="adminRegistrationsList" class="status">Cargando solicitudes…</div>
+  </div>
+ </div>
+</div>
+
+ <div id="standingsPanel" class="panel hidden">
+  <div class="actions" style="justify-content:space-between;align-items:center"><h2 style="margin:0">8. Tabla de posiciones</h2><button id="refreshStandingsBtn" class="secondary" type="button">Actualizar tabla</button></div>
+  <p class="muted">La clasificación se calcula automáticamente con los marcadores aprobados.</p>
+  <div class="field"><label for="standingsTournament">Torneo</label><select id="standingsTournament"><option value="">Seleccioná un torneo</option></select></div>
+  <div id="standingsList" class="status">Seleccioná un torneo para consultar la clasificación.</div>
+ </div>
+
+ <div id="matchesPanel" class="panel hidden">
+  <h2>7. Partidos y resultados</h2>
+  <p class="muted">Reportá el marcador y adjuntá una captura. El resultado queda pendiente hasta que un administrador lo revise.</p>
+  <div id="playerMatchesList" class="status">Cargando partidos…</div>
+  <div id="adminMatchesPanel" class="panel hidden" style="margin-top:18px;margin-bottom:0">
+   <h2>Sorteo automático (administrador)</h2>
+   <p class="muted">Usa las inscripciones aprobadas y el formato guardado en el torneo. Grupos predeterminados de 4; clasifican los 2 primeros cuando hay fase eliminatoria.</p>
+   <div class="field"><label for="drawTournament">Torneo para sorteo</label><select id="drawTournament"><option value="">Cargando torneos…</option></select></div>
+   <button id="generateScheduleBtn" type="button">Sortear jugadores y generar calendario</button>
+   <div id="generateScheduleStatus" class="status" style="margin-top:12px">Elegí un torneo. El sorteo no se puede repetir si ya existen partidos.</div>
+   <div style="height:1px;background:var(--line);margin:20px 0"></div>
+   <h2>Crear partido manual (administrador)</h2>
+   <p class="muted">Solo se mostrarán jugadores con inscripción aprobada en el torneo elegido.</p>
+   <div class="field"><label for="matchTournament">Torneo</label><select id="matchTournament"><option value="">Cargando torneos…</option></select></div>
+   <div class="field"><label for="matchPlayer1">Jugador 1</label><select id="matchPlayer1"><option value="">Elegí un torneo primero</option></select></div>
+   <div class="field"><label for="matchPlayer2">Jugador 2</label><select id="matchPlayer2"><option value="">Elegí un torneo primero</option></select></div>
+   <div class="field"><label for="matchRound">Jornada / ronda</label><input id="matchRound" type="number" min="1" step="1" value="1"></div>
+   <button id="createMatchBtn" type="button">Crear partido</button>
+   <div id="createMatchStatus" class="status" style="margin-top:12px">Seleccioná torneo y jugadores.</div>
+   <div style="height:1px;background:var(--line);margin:20px 0"></div>
+   <h2>Revisar resultados pendientes</h2>
+   <div id="adminMatchesList" class="status">Cargando resultados…</div>
+  </div>
+ </div>
+
+ <div class="panel"><h2>Qué confirma esta prueba</h2><p class="muted">Esta versión incluye conexión, autenticación, creación de torneos e inscripción básica. Las solicitudes se guardan con estado pending (pendiente); los permisos siguen controlados por Supabase RLS.</p><p class="note">Consejo: abrí este archivo con Chrome o Edge. Necesitás conexión a internet para cargar la biblioteca de Supabase.</p></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(() => {
+ const $ = id => document.getElementById(id);
+ let client = null;
+ const show = (id, msg, kind='') => { const el=$(id); el.textContent=msg; el.className='status'+(kind?' '+kind:''); };
+ const setBusy = (id,busy) => { $(id).disabled=busy; };
+ const ready = () => { if(!client) throw new Error('Primero conectá tu proyecto de Supabase.'); };
+ $('connectBtn').addEventListener('click', async () => {
+   setBusy('connectBtn',true);
+   try {
+     if(!window.supabase) throw new Error('No se pudo cargar la biblioteca de Supabase. Revisá tu conexión a internet y recargá la página.');
+     const url=$('projectUrl').value.trim().replace(/\/$/,'');
+     const key=$('publicKey').value.trim();
+     if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)) throw new Error('Revisá el Project URL. Debe tener el formato https://tu-proyecto.supabase.co');
+     if(!key) throw new Error('Pegá la Publishable key o la clave pública anon.');
+     client=window.supabase.createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+     const {error}=await client.auth.getSession();
+     if(error) throw error;
+     $('authArea').classList.remove('hidden');
+     show('connectionStatus','Conexión inicial correcta: se pudo inicializar el cliente de Supabase. Ahora probá iniciar sesión con tu usuario.','ok');
+     show('authStatus','Cliente listo. Iniciá sesión con el usuario que creaste.');
+   } catch(e) { client=null; show('connectionStatus','No se pudo completar la conexión: '+(e.message||String(e)),'bad'); }
+   finally {setBusy('connectBtn',false);}
+ });
+ $('clearBtn').addEventListener('click',()=>{client=null;$('projectUrl').value='';$('publicKey').value='';$('authArea').classList.add('hidden');$('dataArea').classList.add('hidden');show('connectionStatus','Campos limpiados. Todavía no se ha probado la conexión.');});
+ $('signupBtn').addEventListener('click',async()=>{try{ready();const email=$('signupEmail').value.trim(),password=$('signupPassword').value,name=$('signupName').value.trim(),username=$('signupUsername').value.trim();if(!email||!password||!name||!username)throw new Error('Completá todos los campos.');if(password.length<8)throw new Error('Usá una contraseña de al menos 8 caracteres.');const {data,error}=await client.auth.signUp({email,password,options:{data:{display_name:name,username}}});if(error)throw error;show('authStatus',data.session?'Cuenta creada y sesión iniciada.':'Solicitud de registro enviada. Si está activada la confirmación por correo, revisá tu bandeja antes de iniciar sesión.','ok');}catch(e){show('authStatus',e.message||String(e),'bad');}});
+ $('loginBtn').addEventListener('click',async()=>{try{ready();const {data,error}=await client.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPassword').value});if(error)throw error;const {data:profileData,error:profileError}=await client.from('profiles').select('username,display_name,role').eq('id',data.user.id).maybeSingle();if(profileError)throw profileError;show('authStatus','Sesión iniciada: '+(profileData?.display_name||data.user.email)+'\nRol: '+(profileData?.role||'perfil pendiente'),'ok');$('dataArea').classList.remove('hidden');$('adminRegistrationsPanel').classList.toggle('hidden',profileData?.role!=='admin');await loadTournaments();if(profileData?.role==='admin')await loadAdminRegistrations();await loadMatches();await loadStandingsOptions();}catch(e){show('authStatus',e.message||String(e),'bad');}});
+ $('logoutBtn').addEventListener('click',async()=>{try{ready();const {error}=await client.auth.signOut();if(error)throw error;$('dataArea').classList.add('hidden');$('adminRegistrationsPanel').classList.add('hidden');$('matchesPanel').classList.add('hidden');$('standingsPanel').classList.add('hidden');show('authStatus','Sesión cerrada.');}catch(e){show('authStatus',e.message||String(e),'bad');}});
+ async function loadTournaments(){
+    try {
+      ready();
+      const {data:userData,error:userError}=await client.auth.getUser();
+      if(userError) throw userError;
+      const user=userData?.user;
+      if(!user) throw new Error('Iniciá sesión para ver los torneos e inscribirte.');
+
+      const {data:tournaments,error}=await client.from('tournaments')
+        .select('id,name,format,status,max_players,starts_at')
+        .order('created_at',{ascending:false});
+      if(error) throw error;
+
+      const list=$('tournamentList');
+      list.replaceChildren();
+      list.className='status';
+      if(!tournaments || tournaments.length===0){
+        show('tournamentList','La conexión funciona, pero todavía no hay torneos guardados.');
+        return;
+      }
+
+      const {data:registrations,error:registrationError}=await client.from('registrations')
+        .select('tournament_id,status')
+        .eq('player_id',user.id);
+      if(registrationError) throw registrationError;
+      const registrationByTournament=new Map((registrations||[]).map(r=>[r.tournament_id,r.status]));
+
+      tournaments.forEach(t=>{
+        const item=document.createElement('div');
+        item.className='item';
+        const title=document.createElement('strong');
+        title.textContent=t.name;
+        const meta=document.createElement('div');
+        meta.className='muted';
+        meta.textContent=`${t.format} · ${t.status} · máximo ${t.max_players} jugadores`;
+        item.append(title,meta);
+        const actions=document.createElement('div');
+        actions.className='actions';
+        const existingStatus=registrationByTournament.get(t.id);
+        if(existingStatus){
+          const badge=document.createElement('span');
+          badge.className='pill';
+          const normalized=String(existingStatus).toLowerCase();
+          badge.textContent=normalized==='approved'?'Inscripción aprobada':
+            normalized==='rejected'?'Inscripción rechazada':
+            normalized==='pending'?'Inscripción pendiente':'Estado: '+existingStatus;
+          actions.append(badge);
+        } else {
+          const registerBtn=document.createElement('button');
+          registerBtn.type='button';
+          registerBtn.textContent='Inscribirme';
+          registerBtn.addEventListener('click',()=>registerForTournament(t.id,registerBtn));
+          actions.append(registerBtn);
+        }
+        item.append(actions);
+        list.append(item);
+      });
+    } catch(e) {
+      show('tournamentList','No se pudieron consultar los torneos o las inscripciones: '+(e.message||String(e))+
+        '\\n\\nSi menciona RLS o permisos, habrá que revisar las políticas de public.registrations.','bad');
+    }
+  }
+
+  async function registerForTournament(tournamentId,button){
+    try {
+      ready();
+      button.disabled=true;
+      button.textContent='Inscribiendo…';
+      const {data:userData,error:userError}=await client.auth.getUser();
+      if(userError) throw userError;
+      const user=userData?.user;
+      if(!user) throw new Error('Tu sesión no está activa. Iniciá sesión de nuevo.');
+
+      const {data:existing,error:checkError}=await client.from('registrations')
+        .select('id,status')
+        .eq('tournament_id',tournamentId)
+        .eq('player_id',user.id)
+        .maybeSingle();
+      if(checkError) throw checkError;
+      if(existing){
+        await loadTournaments();
+        return;
+      }
+
+      const {error}=await client.from('registrations').insert({
+        tournament_id:tournamentId,
+        player_id:user.id,
+        status:'pending'
+      });
+      if(error) throw error;
+      await loadTournaments();
+    } catch(e) {
+      button.disabled=false;
+      button.textContent='Inscribirme';
+      show('tournamentList','No se pudo completar la inscripción: '+(e.message||String(e))+
+        '\\n\\nRevisá las políticas RLS de public.registrations y que el usuario tenga permiso para crear su propia inscripción.','bad');
+    }
+  }
+
+
+  async function loadAdminRegistrations(){
+    const panel=$('adminRegistrationsPanel');
+    const list=$('adminRegistrationsList');
+    try{
+      ready();
+      const {data:userData,error:userError}=await client.auth.getUser();
+      if(userError) throw userError;
+      if(!userData?.user) throw new Error('Iniciá sesión como administrador.');
+      const {data:profile,error:profileError}=await client.from('profiles')
+        .select('role').eq('id',userData.user.id).maybeSingle();
+      if(profileError) throw profileError;
+      if(profile?.role!=='admin'){
+        panel.classList.add('hidden');
+        throw new Error('Esta sección es solo para administradores.');
+      }
+      panel.classList.remove('hidden');
+      list.className='status';
+      list.textContent='Cargando solicitudes…';
+      const {data:registrations,error}=await client.from('registrations')
+        .select('id,tournament_id,player_id,status,created_at,reviewed_by,reviewed_at')
+        .order('created_at',{ascending:false});
+      if(error) throw error;
+      if(!registrations?.length){
+        list.textContent='Todavía no hay solicitudes de inscripción.';
+        return;
+      }
+      const tournamentIds=[...new Set(registrations.map(r=>r.tournament_id))];
+      const playerIds=[...new Set(registrations.map(r=>r.player_id))];
+      const [{data:tournaments,error:tError},{data:profiles,error:pError}]=await Promise.all([
+        client.from('tournaments').select('id,name').in('id',tournamentIds),
+        client.from('profiles').select('id,username,display_name').in('id',playerIds)
+      ]);
+      if(tError) throw tError;
+      const tournamentNames=new Map((tournaments||[]).map(t=>[t.id,t.name]));
+      const playerNames=new Map((!pError?(profiles||[]):[]).map(p=>[p.id,p.display_name||p.username||p.id]));
+      list.replaceChildren();
+      for(const r of registrations){
+        const item=document.createElement('div');
+        item.className='item';
+        const title=document.createElement('strong');
+        title.textContent=tournamentNames.get(r.tournament_id)||'Torneo';
+        const detail=document.createElement('div');
+        detail.className='muted';
+        detail.textContent='Jugador: '+(playerNames.get(r.player_id)||r.player_id)+' · Estado: '+r.status;
+        const date=document.createElement('div');
+        date.className='note';
+        date.textContent='Solicitud: '+(r.created_at?new Date(r.created_at).toLocaleString():'fecha no disponible');
+        item.append(title,detail,date);
+        if(String(r.status).toLowerCase()==='pending'){
+          const actions=document.createElement('div');
+          actions.className='actions';
+          const approve=document.createElement('button');
+          approve.type='button'; approve.textContent='Aprobar';
+          approve.addEventListener('click',()=>reviewRegistration(r.id,'approved',approve));
+          const reject=document.createElement('button');
+          reject.type='button'; reject.textContent='Rechazar'; reject.className='secondary';
+          reject.addEventListener('click',()=>reviewRegistration(r.id,'rejected',reject));
+          actions.append(approve,reject); item.append(actions);
+        }
+        list.append(item);
+      }
+    }catch(e){
+      list.className='status bad';
+      list.textContent='No se pudieron cargar las solicitudes: '+(e.message||String(e))+
+        '\nRevisá que la política SELECT permita a admin ver inscripciones y que la política UPDATE permita cambiar su estado.';
+    }
+  }
+
+  async function reviewRegistration(registrationId,newStatus,button){
+    const original=button.textContent;
+    try{
+      ready();
+      button.disabled=true;
+      button.textContent=newStatus==='approved'?'Aprobando…':'Rechazando…';
+      const {data:userData,error:userError}=await client.auth.getUser();
+      if(userError) throw userError;
+      if(!userData?.user) throw new Error('La sesión expiró. Iniciá sesión de nuevo.');
+      const {data:profile,error:profileError}=await client.from('profiles')
+        .select('role').eq('id',userData.user.id).maybeSingle();
+      if(profileError) throw profileError;
+      if(profile?.role!=='admin') throw new Error('Solo un administrador puede revisar inscripciones.');
+      const {error}=await client.from('registrations').update({
+        status:newStatus,
+        reviewed_by:userData.user.id,
+        reviewed_at:new Date().toISOString()
+      }).eq('id',registrationId);
+      if(error) throw error;
+      await loadAdminRegistrations();
+      await loadTournaments();
+    }catch(e){
+      button.disabled=false;
+      button.textContent=original;
+      show('adminRegistrationsList','No se pudo actualizar la inscripción: '+(e.message||String(e))+
+        '\nSi menciona RLS, revisá la política UPDATE de public.registrations.','bad');
+    }
+  }
+
+
+  async function loadStandingsOptions(){
+    try{
+      ready();
+      const {data,error}=await client.from('tournaments').select('id,name').order('created_at',{ascending:false});
+      if(error)throw error;
+      const sel=$('standingsTournament');
+      const previous=sel.value;
+      sel.replaceChildren(new Option('Seleccioná un torneo',''));
+      (data||[]).forEach(t=>sel.add(new Option(t.name,t.id)));
+      if(previous && (data||[]).some(t=>t.id===previous))sel.value=previous;
+      $('standingsPanel').classList.remove('hidden');
+      if(sel.value)await loadStandings();
+      else show('standingsList','Seleccioná un torneo para consultar la clasificación.');
+    }catch(e){show('standingsList','No se pudieron cargar los torneos: '+(e.message||String(e)),'bad');}
+  }
+  async function loadStandings(){
+    try{
+      ready();
+      const tid=$('standingsTournament').value;
+      if(!tid){show('standingsList','Seleccioná un torneo para consultar la clasificación.');return;}
+      const {data,error}=await client.from('tournament_standings').select('player_id,player_name,pj,pg,pe,pp,gf,gc,dg,pts').eq('tournament_id',tid).order('pts',{ascending:false}).order('dg',{ascending:false}).order('gf',{ascending:false}).order('player_name',{ascending:true});
+      if(error)throw error;
+      const list=$('standingsList');list.replaceChildren();list.className='status';
+      if(!data?.length){list.textContent='Todavía no hay jugadores con inscripción aprobada en este torneo, o la vista no tiene permisos de lectura.';return;}
+      const table=document.createElement('div');table.style.overflowX='auto';
+      const t=document.createElement('table');t.style.width='100%';t.style.borderCollapse='collapse';t.style.minWidth='620px';
+      const headers=['#','Jugador','PJ','PG','PE','PP','GF','GC','DG','PTS'];
+      const thead=document.createElement('thead'),hr=document.createElement('tr');
+      headers.forEach((h,i)=>{const th=document.createElement('th');th.textContent=h;th.style.padding='9px 6px';th.style.borderBottom='1px solid var(--line)';th.style.textAlign=i<2?'left':'center';hr.append(th);});thead.append(hr);t.append(thead);
+      const tbody=document.createElement('tbody');
+      data.forEach((r,i)=>{const tr=document.createElement('tr');const vals=[i+1,r.player_name,r.pj,r.pg,r.pe,r.pp,r.gf,r.gc,r.dg,r.pts];vals.forEach((v,j)=>{const td=document.createElement('td');td.textContent=String(v??0);td.style.padding='9px 6px';td.style.borderBottom='1px solid var(--line)';td.style.textAlign=j<2?'left':'center';if(j===9)td.style.fontWeight='800';tr.append(td);});tbody.append(tr);});
+      t.append(tbody);table.append(t);list.append(table);
+      const note=document.createElement('div');note.className='note';note.style.marginTop='10px';note.textContent='Orden: puntos, diferencia de goles, goles a favor y nombre. Solo cuentan los resultados aprobados.';list.append(note);
+    }catch(e){show('standingsList','No se pudo cargar la tabla: '+(e.message||String(e))+'\nSi menciona permisos, revisaremos la configuración de lectura de la vista tournament_standings.','bad');}
+  }
+  $('standingsTournament').addEventListener('change',loadStandings);
+  $('refreshStandingsBtn').addEventListener('click',loadStandings);
+
+  const MATCH_BUCKET='match-screenshots';
+  async function loadMatches(){
+    try{
+      ready();
+      const {data:userData,error:userError}=await client.auth.getUser();if(userError)throw userError;
+      const user=userData?.user;if(!user)throw new Error('Iniciá sesión para ver tus partidos.');
+      const {data:profile,error:profileError}=await client.from('profiles').select('role').eq('id',user.id).maybeSingle();
+      if(profileError)throw profileError;
+      const isAdmin=profile?.role==='admin';
+      $('matchesPanel').classList.remove('hidden');$('adminMatchesPanel').classList.toggle('hidden',!isAdmin);
+      const {data:matches,error}=await client.from('tournament_matches').select('id,tournament_id,player1_id,player2_id,round_number,group_name,stage,goals_player1,goals_player2,screenshot_path,result_status').order('created_at',{ascending:false});
+      if(error)throw error;
+      const visible=(matches||[]).filter(m=>isAdmin||m.player1_id===user.id||m.player2_id===user.id);
+      const tids=[...new Set(visible.map(m=>m.tournament_id))], pids=[...new Set(visible.flatMap(m=>[m.player1_id,m.player2_id]))];
+      const [{data:ts,error:te},{data:ps,error:pe}]=await Promise.all([
+        tids.length?client.from('tournaments').select('id,name').in('id',tids):Promise.resolve({data:[],error:null}),
+        pids.length?client.from('profiles').select('id,username,display_name').in('id',pids):Promise.resolve({data:[],error:null})
+      ]);
+      if(te)throw te;if(pe)throw pe;
+      const tn=new Map((ts||[]).map(x=>[x.id,x.name])),pn=new Map((ps||[]).map(x=>[x.id,x.display_name||x.username||x.id]));
+      const list=$('playerMatchesList');list.replaceChildren();list.className='status';
+      if(!visible.length)list.textContent='Todavía no tenés partidos asignados.';
+      for(const m of visible){
+        const item=document.createElement('div');item.className='item';
+        const title=document.createElement('strong');title.textContent=(tn.get(m.tournament_id)||'Torneo')+' · '+(m.group_name?'Grupo '+m.group_name+' · ':'')+(m.stage==='knockout'?'Eliminatoria · ':'')+'Jornada '+m.round_number;
+        const detail=document.createElement('div');detail.className='muted';detail.textContent=(pn.get(m.player1_id)||'Jugador 1')+' vs '+(pn.get(m.player2_id)||'Jugador 2');
+        const st=document.createElement('div');st.className='note';st.textContent='Estado: '+({not_reported:'Sin reportar',pending:'Pendiente de revisión',approved:'Aprobado',rejected:'Rechazado'}[m.result_status]||m.result_status);
+        item.append(title,detail,st);
+        if(m.result_status==='approved'){const sc=document.createElement('div');sc.textContent='Marcador aprobado: '+m.goals_player1+' - '+m.goals_player2;item.append(sc);}
+        if(m.result_status!=='approved'&&(m.player1_id===user.id||m.player2_id===user.id)){
+          const g1=document.createElement('input');g1.type='number';g1.min='0';g1.step='1';g1.placeholder='Goles del jugador 1';
+          const g2=document.createElement('input');g2.type='number';g2.min='0';g2.step='1';g2.placeholder='Goles del jugador 2';g2.style.marginTop='8px';
+          const file=document.createElement('input');file.type='file';file.accept='image/png,image/jpeg,image/webp';file.style.marginTop='8px';
+          const btn=document.createElement('button');btn.type='button';btn.textContent='Enviar marcador y captura';btn.style.marginTop='8px';
+          const msg=document.createElement('div');msg.className='note';msg.style.marginTop='6px';
+          btn.addEventListener('click',async()=>{
+            try{
+              btn.disabled=true;const a=Number(g1.value),b=Number(g2.value),f=file.files?.[0];
+              if(g1.value===''||g2.value===''||!Number.isInteger(a)||!Number.isInteger(b)||a<0||b<0)throw new Error('Ingresá ambos marcadores con goles enteros no negativos.');
+              if(!f)throw new Error('Seleccioná la captura del partido.');
+              if(!['image/png','image/jpeg','image/webp'].includes(f.type))throw new Error('Usá una imagen PNG, JPG o WEBP.');
+              if(f.size>10*1024*1024)throw new Error('La captura debe pesar 10 MB o menos.');
+              msg.textContent='Subiendo captura…';
+              const path=m.id+'/'+user.id+'/'+Date.now()+'_'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+              const {error:upErr}=await client.storage.from(MATCH_BUCKET).upload(path,f,{upsert:false,contentType:f.type});if(upErr)throw upErr;
+              const {error:rpcErr}=await client.rpc('report_match_result',{p_match_id:m.id,p_goals_player1:a,p_goals_player2:b,p_screenshot_path:path});if(rpcErr)throw rpcErr;
+              msg.textContent='Resultado enviado y pendiente de revisión.';await loadMatches();
+            }catch(e){msg.textContent='Error: '+(e.message||String(e));btn.disabled=false;}
+          });
+          item.append(g1,g2,file,btn,msg);
+        }
+        list.append(item);
+      }
+      if(isAdmin){
+        await loadMatchOptions();
+        const review=$('adminMatchesList');review.replaceChildren();review.className='status';
+        const pending=(matches||[]).filter(m=>m.result_status==='pending');
+        if(!pending.length)review.textContent='No hay resultados pendientes de revisión.';
+        for(const m of pending){
+          const item=document.createElement('div');item.className='item';
+          const title=document.createElement('strong');title.textContent=(tn.get(m.tournament_id)||'Torneo')+' · '+(m.group_name?'Grupo '+m.group_name+' · ':'')+(m.stage==='knockout'?'Eliminatoria · ':'')+(pn.get(m.player1_id)||'Jugador 1')+' vs '+(pn.get(m.player2_id)||'Jugador 2');
+          const sc=document.createElement('div');sc.textContent='Marcador reportado: '+m.goals_player1+' - '+m.goals_player2;item.append(title,sc);
+          if(m.screenshot_path){
+            const {data:d,error:e}=await client.storage.from(MATCH_BUCKET).createSignedUrl(m.screenshot_path,300);
+            if(!e){const a=document.createElement('a');a.href=d.signedUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Ver captura (5 minutos)';a.style.display='block';a.style.margin='8px 0';item.append(a);}
+            else {const msg=document.createElement('div');msg.className='note';msg.textContent='No se pudo abrir la captura: '+e.message;item.append(msg);}
+          }
+          const actions=document.createElement('div');actions.className='actions';
+          for(const [state,label] of [['approved','Aprobar'],['rejected','Rechazar']]){
+            const b=document.createElement('button');b.type='button';b.textContent=label;if(state==='rejected')b.className='secondary';
+            b.addEventListener('click',()=>reviewMatch(m.id,state,b));actions.append(b);
+          }item.append(actions);review.append(item);
+        }
+      }
+    }catch(e){show('playerMatchesList','No se pudieron cargar los partidos: '+(e.message||String(e)),'bad');}
+  }
+  async function loadMatchOptions(){
+    try{
+      const {data,error}=await client.from('tournaments').select('id,name,format').order('created_at',{ascending:false});if(error)throw error;
+      const sel=$('matchTournament');sel.replaceChildren(new Option('Elegí un torneo',''));(data||[]).forEach(t=>sel.add(new Option(t.name,t.id)));
+      const draw=$('drawTournament');draw.replaceChildren(new Option('Elegí un torneo',''));(data||[]).forEach(t=>draw.add(new Option(t.name+' · '+(t.format||'formato sin indicar'),t.id)));
+      await loadMatchPlayers();
+    }catch(e){show('createMatchStatus','Error al cargar torneos: '+e.message,'bad');}
+  }
+  async function loadMatchPlayers(){
+    const tid=$('matchTournament').value,p1=$('matchPlayer1'),p2=$('matchPlayer2');
+    p1.replaceChildren(new Option('Elegí jugador 1',''));p2.replaceChildren(new Option('Elegí jugador 2',''));if(!tid)return;
+    try{
+      const {data:r,error}=await client.from('registrations').select('player_id').eq('tournament_id',tid).eq('status','approved');if(error)throw error;
+      const ids=[...new Set((r||[]).map(x=>x.player_id))];if(!ids.length){show('createMatchStatus','No hay inscripciones aprobadas en este torneo.');return;}
+      const {data:p,error:pe}=await client.from('profiles').select('id,username,display_name').in('id',ids);if(pe)throw pe;
+      (p||[]).forEach(x=>{const label=x.display_name||x.username||x.id;p1.add(new Option(label,x.id));p2.add(new Option(label,x.id));});
+      show('createMatchStatus','Seleccioná dos jugadores diferentes.');
+    }catch(e){show('createMatchStatus','No se pudieron cargar jugadores: '+e.message,'bad');}
+  }
+  function shuffleArray(items){
+    const a=[...items];
+    for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+    return a;
+  }
+  function roundRobinRounds(players){
+    const list=[...players];if(list.length%2)list.push(null);
+    const rounds=[];const n=list.length;
+    for(let r=0;r<n-1;r++){
+      const games=[];
+      for(let i=0;i<n/2;i++){
+        const a=list[i],b=list[n-1-i];if(a&&b)games.push([a,b]);
+      }
+      rounds.push(games);
+      const fixed=list[0],rest=list.slice(1);rest.unshift(rest.pop());list.splice(0,list.length,fixed,...rest);
+    }
+    return rounds;
+  }
+  function groupsCountText(count){return String(Math.ceil(count/4));}
+  function normalizedFormat(value){
+    const f=String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    if((f.includes('grupo')||f.includes('group'))&&(f.includes('elimin')||f.includes('playoff')||f.includes('play off')))return 'groups_knockout';
+    if(f.includes('liga')||f.includes('todos contra todos')||f.includes('round robin'))return 'league';
+    if(f.includes('elimin')||f.includes('knockout')||f.includes('directa'))return 'knockout';
+    if(f.includes('grupo')||f.includes('group'))return 'groups';
+    return null;
+  }
+  $('generateScheduleBtn').addEventListener('click',async()=>{
+    const btn=$('generateScheduleBtn');
+    try{
+      ready();btn.disabled=true;show('generateScheduleStatus','Preparando sorteo…');
+      const tid=$('drawTournament').value;if(!tid)throw new Error('Elegí un torneo.');
+      const {data:u,error:ue}=await client.auth.getUser();if(ue)throw ue;if(!u.user)throw new Error('Iniciá sesión como administrador.');
+      const {data:profile,error:pe}=await client.from('profiles').select('role').eq('id',u.user.id).maybeSingle();if(pe)throw pe;if(profile?.role!=='admin')throw new Error('Solo un administrador puede generar el calendario.');
+      const {data:tournament,error:te}=await client.from('tournaments').select('id,name,format').eq('id',tid).single();if(te)throw te;
+      const format=normalizedFormat(tournament.format);if(!format)throw new Error('No reconozco el formato «'+tournament.format+'». Usá Liga, Grupos, Eliminación directa o Grupos + eliminatorias en el campo Formato del torneo.');
+      const {data:existing,error:me}=await client.from('tournament_matches').select('id').eq('tournament_id',tid).limit(1);if(me)throw me;if(existing?.length)throw new Error('Este torneo ya tiene partidos. Para evitar duplicados, no se generó otro calendario.');
+      const {data:regs,error:re}=await client.from('registrations').select('player_id').eq('tournament_id',tid).eq('status','approved');if(re)throw re;
+      const ids=[...new Set((regs||[]).map(r=>r.player_id))];if(ids.length<2)throw new Error('Se necesitan al menos 2 jugadores con inscripción aprobada.');
+      let players=shuffleArray(ids), fixtures=[];
+      if(format==='league'){
+        if(players.length>200)throw new Error('Para evitar crear demasiados partidos, el límite de este generador es 200 jugadores.');
+        roundRobinRounds(players).forEach((games,i)=>games.forEach(([a,b])=>fixtures.push({tournament_id:tid,player1_id:a,player2_id:b,round_number:i+1,stage:'league',group_name:null,result_status:'not_reported'})));
+      }else if(format==='groups'||format==='groups_knockout'){
+        if(players.length>200)throw new Error('Para evitar crear demasiados partidos, el límite de este generador es 200 jugadores.');
+        const groupCount=Math.ceil(players.length/4);const groups=Array.from({length:groupCount},()=>[]);players.forEach((player,i)=>groups[i%groupCount].push(player));
+        groups.forEach((group,gi)=>roundRobinRounds(group).forEach((games,ri)=>games.forEach(([a,b])=>fixtures.push({tournament_id:tid,player1_id:a,player2_id:b,round_number:ri+1,stage:'groups',group_name:String.fromCharCode(65+gi),result_status:'not_reported'}))));
+      }else if(format==='knockout'){
+        const n=players.length;const power=2**Math.ceil(Math.log2(n));
+        if(power!==n)throw new Error('Eliminación directa requiere 2, 4, 8, 16, 32, 64 o 128 jugadores aprobados. Para cantidades diferentes, elegí Grupos + eliminatorias o completá las inscripciones antes del sorteo.');
+        for(let i=0;i<players.length;i+=2)fixtures.push({tournament_id:tid,player1_id:players[i],player2_id:players[i+1],round_number:1,stage:'knockout',group_name:null,result_status:'not_reported'});
+      }
+      if(!fixtures.length)throw new Error('No se pudieron crear partidos con las inscripciones actuales.');
+      const {error:insErr}=await client.from('tournament_matches').insert(fixtures);if(insErr)throw insErr;
+      const summary=format==='league'?'Liga: '+fixtures.length+' partidos repartidos en '+Math.max(...fixtures.map(f=>f.round_number))+' jornadas.':format==='knockout'?'Eliminación directa: '+fixtures.length+' cruces aleatorios creados para la primera ronda.':'Se sortearon '+players.length+' jugadores en '+groupsCountText(players.length)+' grupos equilibrados de hasta 4; se crearon '+fixtures.length+' partidos de fase de grupos.'+(format==='groups_knockout'?' Después de aprobar los resultados de grupos, generaremos la fase eliminatoria.':'');
+      show('generateScheduleStatus','¡Sorteo completado! '+summary,'ok');await loadMatches();
+    }catch(e){show('generateScheduleStatus','No se pudo generar el calendario: '+(e.message||String(e)),'bad');}
+    finally{btn.disabled=false;}
+  });
+  $('matchTournament').addEventListener('change',loadMatchPlayers);
+  $('createMatchBtn').addEventListener('click',async()=>{
+    try{
+      const tid=$('matchTournament').value,p1=$('matchPlayer1').value,p2=$('matchPlayer2').value,round=Number($('matchRound').value);
+      if(!tid||!p1||!p2)throw new Error('Seleccioná torneo y dos jugadores.');
+      if(p1===p2)throw new Error('Los jugadores deben ser diferentes.');
+      if(!Number.isInteger(round)||round<1)throw new Error('La jornada debe ser un entero positivo.');
+      const {data:u,error:ue}=await client.auth.getUser();if(ue)throw ue;
+      const {data:p,error:pe}=await client.from('profiles').select('role').eq('id',u.user.id).maybeSingle();if(pe)throw pe;if(p?.role!=='admin')throw new Error('Solo un administrador puede crear partidos.');
+      const {error}=await client.from('tournament_matches').insert({tournament_id:tid,player1_id:p1,player2_id:p2,round_number:round,result_status:'not_reported'});if(error)throw error;
+      show('createMatchStatus','Partido creado correctamente.','ok');await loadMatches();
+    }catch(e){show('createMatchStatus','No se pudo crear el partido: '+(e.message||String(e)),'bad');}
+  });
+  async function reviewMatch(id,state,button){
+    try{
+      button.disabled=true;const {data:u,error:ue}=await client.auth.getUser();if(ue)throw ue;if(!u.user)throw new Error('Iniciá sesión de nuevo.');
+      const {data:p,error:pe}=await client.from('profiles').select('role').eq('id',u.user.id).maybeSingle();if(pe)throw pe;if(p?.role!=='admin')throw new Error('Solo admin puede revisar resultados.');
+      const {error}=await client.from('tournament_matches').update({result_status:state,reviewed_by:u.user.id,reviewed_at:new Date().toISOString()}).eq('id',id).eq('result_status','pending');if(error)throw error;
+      await loadMatches();
+    }catch(e){show('adminMatchesList','No se pudo revisar: '+(e.message||String(e)),'bad');button.disabled=false;}
+  }
+
+  $('refreshBtn').addEventListener('click',loadTournaments);
+  $('refreshRegistrationsBtn').addEventListener('click',loadAdminRegistrations);
+
+  $('createTournamentForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    try {
+      ready();
+      const name=$('tournamentName').value.trim();
+      const format=$('tournamentFormat').value.trim();
+      const maxPlayers=Number($('tournamentMaxPlayers').value);
+      const startsAt=$('tournamentStartsAt').value;
+
+      if(!name || !format) throw new Error('Completá el nombre y el formato del torneo.');
+      if(!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 1000) {
+        throw new Error('El máximo de jugadores debe ser un entero entre 2 y 1000.');
+      }
+
+      // Obtener el usuario autenticado para cumplir la política RLS:
+      // created_by debe coincidir con auth.uid().
+      const {data:userData,error:userError}=await client.auth.getUser();
+      if(userError) throw userError;
+      if(!userData?.user) throw new Error('Tu sesión no está activa. Cerrá sesión e iniciá sesión de nuevo.');
+
+      const payload={
+        name,
+        format,
+        max_players:maxPlayers,
+        created_by:userData.user.id
+      };
+      if(startsAt) {
+        const date=new Date(startsAt);
+        if(Number.isNaN(date.getTime())) throw new Error('La fecha de inicio no es válida.');
+        payload.starts_at=date.toISOString();
+      }
+
+      setBusy('createTournamentBtn',true);
+      show('createTournamentStatus','Guardando torneo…');
+      const {error}=await client.from('tournaments').insert(payload);
+      if(error) throw error;
+
+      $('createTournamentForm').reset();
+      $('tournamentMaxPlayers').value='16';
+      await loadTournaments();
+      show('createTournamentStatus','¡Torneo creado y guardado en Supabase!','ok');
+    } catch(e) {
+      show('createTournamentStatus','No se pudo crear el torneo: '+(e.message||String(e))+
+        '\n\nSi el error menciona RLS o permisos, habrá que revisar la política INSERT de public.tournaments.','bad');
+    } finally {
+      setBusy('createTournamentBtn',false);
+    }
+  });
+
+})();
+</script></body></html>
